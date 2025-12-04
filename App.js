@@ -1,19 +1,60 @@
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react'; // React'in hafızası (State) eklendi
+import { useState, useEffect } from 'react'; // useEffect eklendi
 import { StyleSheet, Text, View, SafeAreaView, TouchableOpacity } from 'react-native';
 
 export default function App() {
   // --- STATE (DURUM) YÖNETİMİ ---
-  const [isActive, setIsActive] = useState(false); // Sayaç çalışıyor mu?
-  const [selectedCategory, setSelectedCategory] = useState('Kodlama'); // Varsayılan kategori
+  const [isActive, setIsActive] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('Kodlama');
+  
+  // Varsayılan süre: 25 dakika * 60 saniye = 1500 saniye
+  const INITIAL_TIME = 25 * 60;
+  const [timeLeft, setTimeLeft] = useState(INITIAL_TIME);
 
-  // Seçeneklerimiz
   const categories = ['Ders', 'Kodlama', 'Kitap', 'Proje'];
+
+  // --- SAYAÇ MANTIĞI ---
+  useEffect(() => {
+    let interval = null;
+
+    if (isActive && timeLeft > 0) {
+      // Aktifse her saniye süreyi 1 azalt
+      interval = setInterval(() => {
+        setTimeLeft((time) => time - 1);
+      }, 1000);
+    } else if (timeLeft === 0) {
+      // Süre bittiyse durdur
+      setIsActive(false);
+    }
+
+    // Temizlik fonksiyonu (Memory leak önler)
+    return () => clearInterval(interval);
+  }, [isActive, timeLeft]);
+
+  // Saniyeyi "MM:SS" formatına çeviren fonksiyon
+  const formatTime = (time) => {
+    const minutes = Math.floor(time / 60);
+    const seconds = time % 60;
+    // Rakam tek haneliyse başına 0 koy (Örn: 5 -> 05)
+    return `${minutes < 10 ? '0' : ''}${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+  };
+
+  // Sayacı Sıfırlama
+  const handleReset = () => {
+    setIsActive(false);
+    setTimeLeft(INITIAL_TIME);
+  };
+
+  // Kategori değişince sayacı sıfırla
+  const changeCategory = (cat) => {
+    if (!isActive) {
+      setSelectedCategory(cat);
+      setTimeLeft(INITIAL_TIME);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      
-      {/* Üst Başlık */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Odaklanma Takibi</Text>
       </View>
@@ -22,8 +63,8 @@ export default function App() {
         
         {/* Sayaç Kartı */}
         <View style={styles.timerCard}>
-          <Text style={styles.timerText}>25:00</Text>
-          {/* Seçili kategori bilgisini state'den alıyoruz */}
+          {/* Dinamik zaman gösterimi */}
+          <Text style={styles.timerText}>{formatTime(timeLeft)}</Text>
           <Text style={styles.activeCategoryText}>{selectedCategory}</Text>
         </View>
 
@@ -34,10 +75,10 @@ export default function App() {
             {categories.map((cat) => (
               <TouchableOpacity 
                 key={cat}
-                onPress={() => !isActive && setSelectedCategory(cat)} // Sayaç çalışıyorsa değiştiremesin
+                onPress={() => changeCategory(cat)}
                 style={[
                   styles.categoryChip, 
-                  selectedCategory === cat && styles.categoryChipSelected // Seçiliyse stil değişsin
+                  selectedCategory === cat && styles.categoryChipSelected
                 ]}
               >
                 <Text style={[
@@ -56,21 +97,29 @@ export default function App() {
           <Text style={styles.descriptionText}>
             {isActive 
               ? "Odaklanma modu aktif! Başarılar..." 
-              : "Hedefine ulaşmak için bir kategori seç ve başla."}
+              : timeLeft === 0 
+                ? "Süre doldu! Harika iş çıkardın." 
+                : "Hedefine ulaşmak için bir kategori seç ve başla."}
           </Text>
           
           <TouchableOpacity 
             style={[styles.button, isActive ? styles.buttonStop : styles.buttonStart]}
-            onPress={() => setIsActive(!isActive)} // Tıklayınca durumu tersine çevir
+            onPress={() => setIsActive(!isActive)}
           >
             <Text style={styles.buttonText}>
-              {isActive ? "SEANSI DURAKLAT" : "ODAKLANMAYI BAŞLAT"}
+              {isActive ? "DURAKLAT" : "BAŞLAT"}
             </Text>
           </TouchableOpacity>
+
+          {/* Sıfırla Butonu (Sadece duraklatıldığında veya süre değiştiyse görünür) */}
+          {(!isActive && timeLeft !== INITIAL_TIME) && (
+            <TouchableOpacity onPress={handleReset} style={styles.resetButton}>
+              <Text style={styles.resetButtonText}>Sayacı Sıfırla</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
       </View>
-
       <StatusBar style="auto" />
     </SafeAreaView>
   );
@@ -129,7 +178,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
-  // Yeni Kategori Stilleri
   categorySection: {
     width: '100%',
     marginBottom: 30,
@@ -158,7 +206,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   categoryChipSelected: {
-    backgroundColor: '#6c5ce7', // Seçili arka plan (Mor)
+    backgroundColor: '#6c5ce7',
     borderColor: '#6c5ce7',
   },
   categoryChipText: {
@@ -167,13 +215,13 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   categoryChipTextSelected: {
-    color: '#fff', // Seçili yazı rengi (Beyaz)
+    color: '#fff',
     fontWeight: '700',
   },
   actionArea: {
     width: '100%',
     alignItems: 'center',
-    marginTop: 'auto', // Butonu en alta itmek için
+    marginTop: 'auto',
     marginBottom: 30,
   },
   descriptionText: {
@@ -181,7 +229,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#b2bec3',
     marginBottom: 20,
-    minHeight: 20, // Metin değişince zıplamayı önler
+    minHeight: 20,
   },
   button: {
     width: '100%',
@@ -195,15 +243,26 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   buttonStart: {
-    backgroundColor: '#6c5ce7', // Başlat Rengi (Mor)
+    backgroundColor: '#6c5ce7',
   },
   buttonStop: {
-    backgroundColor: '#ff7675', // Durdur Rengi (Kırmızımsı)
+    backgroundColor: '#ff7675',
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
     letterSpacing: 1,
+  },
+  // Yeni Sıfırla Butonu Stili
+  resetButton: {
+    marginTop: 15,
+    padding: 10,
+  },
+  resetButtonText: {
+    color: '#636e72',
+    fontSize: 14,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
 });
