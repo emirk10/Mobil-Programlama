@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
-import { useState, useEffect } from 'react'; // useEffect eklendi
-import { StyleSheet, Text, View, SafeAreaView, TouchableOpacity } from 'react-native';
+import { useState, useEffect, useRef } from 'react'; 
+import { StyleSheet, Text, View, SafeAreaView, TouchableOpacity, AppState } from 'react-native';
 
 export default function App() {
   // --- STATE (DURUM) YÖNETİMİ ---
@@ -10,24 +10,45 @@ export default function App() {
   // Varsayılan süre: 25 dakika * 60 saniye = 1500 saniye
   const INITIAL_TIME = 25 * 60;
   const [timeLeft, setTimeLeft] = useState(INITIAL_TIME);
+  
+  // Dikkat dağınıklığı sayacı
+  const [distractionCount, setDistractionCount] = useState(0);
+
+  // AppState'i takip etmek için referans (active, background, inactive)
+  const appState = useRef(AppState.currentState);
 
   const categories = ['Ders', 'Kodlama', 'Kitap', 'Proje'];
+
+  // --- APP STATE (DİKKAT DAĞINIKLIĞI) DİNLEYİCİSİ ---
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      
+      // Eğer uygulama arka plana geçerse (background veya inactive) VE sayaç çalışıyorsa
+      if ( nextAppState.match(/inactive|background/) && isActive ) {
+        setIsActive(false); // Sayacı duraklat
+        setDistractionCount(prev => prev + 1); // Dikkat dağınıklığını artır
+      }
+
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [isActive]); // isActive değiştiğinde listener güncellenmeli
 
   // --- SAYAÇ MANTIĞI ---
   useEffect(() => {
     let interval = null;
 
     if (isActive && timeLeft > 0) {
-      // Aktifse her saniye süreyi 1 azalt
       interval = setInterval(() => {
         setTimeLeft((time) => time - 1);
       }, 1000);
     } else if (timeLeft === 0) {
-      // Süre bittiyse durdur
       setIsActive(false);
     }
 
-    // Temizlik fonksiyonu (Memory leak önler)
     return () => clearInterval(interval);
   }, [isActive, timeLeft]);
 
@@ -35,21 +56,21 @@ export default function App() {
   const formatTime = (time) => {
     const minutes = Math.floor(time / 60);
     const seconds = time % 60;
-    // Rakam tek haneliyse başına 0 koy (Örn: 5 -> 05)
     return `${minutes < 10 ? '0' : ''}${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
 
-  // Sayacı Sıfırlama
+  // Sayacı ve Dikkat Dağınıklığını Sıfırlama
   const handleReset = () => {
     setIsActive(false);
     setTimeLeft(INITIAL_TIME);
+    setDistractionCount(0); // Odaklanma bozulma sayısını da sıfırla
   };
 
-  // Kategori değişince sayacı sıfırla
   const changeCategory = (cat) => {
     if (!isActive) {
       setSelectedCategory(cat);
       setTimeLeft(INITIAL_TIME);
+      setDistractionCount(0);
     }
   };
 
@@ -63,9 +84,15 @@ export default function App() {
         
         {/* Sayaç Kartı */}
         <View style={styles.timerCard}>
-          {/* Dinamik zaman gösterimi */}
           <Text style={styles.timerText}>{formatTime(timeLeft)}</Text>
           <Text style={styles.activeCategoryText}>{selectedCategory}</Text>
+          
+          {/* Dikkat Dağınıklığı Göstergesi (Sadece 0'dan büyükse göster) */}
+          {distractionCount > 0 && (
+            <View style={styles.distractionBadge}>
+              <Text style={styles.distractionText}>⚠️ {distractionCount} Kez Odak Bozuldu!</Text>
+            </View>
+          )}
         </View>
 
         {/* Kategori Seçim Alanı */}
@@ -96,10 +123,10 @@ export default function App() {
         <View style={styles.actionArea}>
           <Text style={styles.descriptionText}>
             {isActive 
-              ? "Odaklanma modu aktif! Başarılar..." 
-              : timeLeft === 0 
-                ? "Süre doldu! Harika iş çıkardın." 
-                : "Hedefine ulaşmak için bir kategori seç ve başla."}
+              ? "Odaklanma modu aktif! Uygulamadan çıkma." 
+              : distractionCount > 0 
+                ? "Dikkatin dağıldı! Tekrar odaklanmak için Başlat'a bas."
+                : "Hedefine ulaşmak için hazır mısın?"}
           </Text>
           
           <TouchableOpacity 
@@ -111,10 +138,10 @@ export default function App() {
             </Text>
           </TouchableOpacity>
 
-          {/* Sıfırla Butonu (Sadece duraklatıldığında veya süre değiştiyse görünür) */}
-          {(!isActive && timeLeft !== INITIAL_TIME) && (
+          {/* Sıfırla Butonu */}
+          {(!isActive && (timeLeft !== INITIAL_TIME || distractionCount > 0)) && (
             <TouchableOpacity onPress={handleReset} style={styles.resetButton}>
-              <Text style={styles.resetButtonText}>Sayacı Sıfırla</Text>
+              <Text style={styles.resetButtonText}>Seansı Sıfırla</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -152,7 +179,7 @@ const styles = StyleSheet.create({
   timerCard: {
     backgroundColor: '#fff',
     width: '100%',
-    paddingVertical: 40,
+    paddingVertical: 30,
     borderRadius: 20,
     alignItems: 'center',
     marginBottom: 20,
@@ -177,6 +204,19 @@ const styles = StyleSheet.create({
     marginTop: 5,
     letterSpacing: 1,
     textTransform: 'uppercase',
+  },
+  // Yeni eklenen uyarı stili
+  distractionBadge: {
+    marginTop: 15,
+    backgroundColor: '#ff7675',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  distractionText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
   categorySection: {
     width: '100%',
@@ -229,7 +269,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#b2bec3',
     marginBottom: 20,
-    minHeight: 20,
+    minHeight: 40, // Yüksekliği artırdım ki yazı değişince zıplamasın
+    justifyContent: 'center',
   },
   button: {
     width: '100%',
@@ -254,7 +295,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     letterSpacing: 1,
   },
-  // Yeni Sıfırla Butonu Stili
   resetButton: {
     marginTop: 15,
     padding: 10,
