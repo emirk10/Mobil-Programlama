@@ -2,7 +2,13 @@ import { StatusBar } from 'expo-status-bar';
 import { useState, useEffect, useRef } from 'react'; 
 import { StyleSheet, Text, View, SafeAreaView, TouchableOpacity, AppState } from 'react-native';
 
-export default function App() {
+// Navigasyon Kütüphaneleri
+import { NavigationContainer } from '@react-navigation/native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Ionicons } from '@expo/vector-icons'; // İkonlar için
+
+// --- 1. EKRAN: ANA SAYFA (ZAMANLAYICI) ---
+function HomeScreen() {
   // --- STATE (DURUM) YÖNETİMİ ---
   const [isActive, setIsActive] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('Kodlama');
@@ -11,36 +17,27 @@ export default function App() {
   const INITIAL_TIME = 25 * 60;
   const [timeLeft, setTimeLeft] = useState(INITIAL_TIME);
   
-  // Dikkat dağınıklığı sayacı
   const [distractionCount, setDistractionCount] = useState(0);
-
-  // AppState'i takip etmek için referans (active, background, inactive)
   const appState = useRef(AppState.currentState);
 
   const categories = ['Ders', 'Kodlama', 'Kitap', 'Proje'];
 
-  // --- APP STATE (DİKKAT DAĞINIKLIĞI) DİNLEYİCİSİ ---
+  // --- APP STATE DİNLEYİCİSİ ---
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
-      
-      // Eğer uygulama arka plana geçerse (background veya inactive) VE sayaç çalışıyorsa
       if ( nextAppState.match(/inactive|background/) && isActive ) {
-        setIsActive(false); // Sayacı duraklat
-        setDistractionCount(prev => prev + 1); // Dikkat dağınıklığını artır
+        setIsActive(false);
+        setDistractionCount(prev => prev + 1);
       }
-
       appState.current = nextAppState;
     });
 
-    return () => {
-      subscription.remove();
-    };
-  }, [isActive]); // isActive değiştiğinde listener güncellenmeli
+    return () => subscription.remove();
+  }, [isActive]);
 
   // --- SAYAÇ MANTIĞI ---
   useEffect(() => {
     let interval = null;
-
     if (isActive && timeLeft > 0) {
       interval = setInterval(() => {
         setTimeLeft((time) => time - 1);
@@ -48,22 +45,19 @@ export default function App() {
     } else if (timeLeft === 0) {
       setIsActive(false);
     }
-
     return () => clearInterval(interval);
   }, [isActive, timeLeft]);
 
-  // Saniyeyi "MM:SS" formatına çeviren fonksiyon
   const formatTime = (time) => {
     const minutes = Math.floor(time / 60);
     const seconds = time % 60;
     return `${minutes < 10 ? '0' : ''}${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
 
-  // Sayacı ve Dikkat Dağınıklığını Sıfırlama
   const handleReset = () => {
     setIsActive(false);
     setTimeLeft(INITIAL_TIME);
-    setDistractionCount(0); // Odaklanma bozulma sayısını da sıfırla
+    setDistractionCount(0);
   };
 
   const changeCategory = (cat) => {
@@ -81,13 +75,9 @@ export default function App() {
       </View>
 
       <View style={styles.content}>
-        
-        {/* Sayaç Kartı */}
         <View style={styles.timerCard}>
           <Text style={styles.timerText}>{formatTime(timeLeft)}</Text>
           <Text style={styles.activeCategoryText}>{selectedCategory}</Text>
-          
-          {/* Dikkat Dağınıklığı Göstergesi (Sadece 0'dan büyükse göster) */}
           {distractionCount > 0 && (
             <View style={styles.distractionBadge}>
               <Text style={styles.distractionText}>⚠️ {distractionCount} Kez Odak Bozuldu!</Text>
@@ -95,7 +85,6 @@ export default function App() {
           )}
         </View>
 
-        {/* Kategori Seçim Alanı */}
         <View style={styles.categorySection}>
           <Text style={styles.sectionTitle}>Kategori Seçin:</Text>
           <View style={styles.categoryContainer}>
@@ -103,15 +92,9 @@ export default function App() {
               <TouchableOpacity 
                 key={cat}
                 onPress={() => changeCategory(cat)}
-                style={[
-                  styles.categoryChip, 
-                  selectedCategory === cat && styles.categoryChipSelected
-                ]}
+                style={[styles.categoryChip, selectedCategory === cat && styles.categoryChipSelected]}
               >
-                <Text style={[
-                  styles.categoryChipText,
-                  selectedCategory === cat && styles.categoryChipTextSelected
-                ]}>
+                <Text style={[styles.categoryChipText, selectedCategory === cat && styles.categoryChipTextSelected]}>
                   {cat}
                 </Text>
               </TouchableOpacity>
@@ -119,7 +102,6 @@ export default function App() {
           </View>
         </View>
 
-        {/* Aksiyon Alanı */}
         <View style={styles.actionArea}>
           <Text style={styles.descriptionText}>
             {isActive 
@@ -133,22 +115,66 @@ export default function App() {
             style={[styles.button, isActive ? styles.buttonStop : styles.buttonStart]}
             onPress={() => setIsActive(!isActive)}
           >
-            <Text style={styles.buttonText}>
-              {isActive ? "DURAKLAT" : "BAŞLAT"}
-            </Text>
+            <Text style={styles.buttonText}>{isActive ? "DURAKLAT" : "BAŞLAT"}</Text>
           </TouchableOpacity>
 
-          {/* Sıfırla Butonu */}
           {(!isActive && (timeLeft !== INITIAL_TIME || distractionCount > 0)) && (
             <TouchableOpacity onPress={handleReset} style={styles.resetButton}>
               <Text style={styles.resetButtonText}>Seansı Sıfırla</Text>
             </TouchableOpacity>
           )}
         </View>
-
       </View>
-      <StatusBar style="auto" />
     </SafeAreaView>
+  );
+}
+
+// --- 2. EKRAN: RAPORLAR (BOŞ TASLAK) ---
+function ReportsScreen() {
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>İstatistikler</Text>
+      </View>
+      <View style={[styles.content, {justifyContent: 'center'}]}>
+        <Ionicons name="bar-chart" size={80} color="#dfe6e9" />
+        <Text style={{fontSize: 18, color: '#636e72', marginTop: 20}}>
+          Grafikler çok yakında burada olacak...
+        </Text>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+// --- NAVİGASYON AYARLARI ---
+const Tab = createBottomTabNavigator();
+
+export default function App() {
+  return (
+    <NavigationContainer>
+      <Tab.Navigator
+        screenOptions={({ route }) => ({
+          headerShown: false, // Üstteki varsayılan başlığı gizle (biz kendimiz yaptık)
+          tabBarIcon: ({ focused, color, size }) => {
+            let iconName;
+
+            if (route.name === 'Zamanlayıcı') {
+              iconName = focused ? 'timer' : 'timer-outline';
+            } else if (route.name === 'Raporlar') {
+              iconName = focused ? 'stats-chart' : 'stats-chart-outline';
+            }
+
+            return <Ionicons name={iconName} size={size} color={color} />;
+          },
+          tabBarActiveTintColor: '#6c5ce7', // Seçili renk (Mor)
+          tabBarInactiveTintColor: 'gray',  // Pasif renk
+        })}
+      >
+        <Tab.Screen name="Zamanlayıcı" component={HomeScreen} />
+        <Tab.Screen name="Raporlar" component={ReportsScreen} />
+      </Tab.Navigator>
+      <StatusBar style="auto" />
+    </NavigationContainer>
   );
 }
 
@@ -205,7 +231,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
-  // Yeni eklenen uyarı stili
   distractionBadge: {
     marginTop: 15,
     backgroundColor: '#ff7675',
@@ -269,7 +294,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#b2bec3',
     marginBottom: 20,
-    minHeight: 40, // Yüksekliği artırdım ki yazı değişince zıplamasın
+    minHeight: 40,
     justifyContent: 'center',
   },
   button: {
