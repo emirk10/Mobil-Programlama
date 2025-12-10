@@ -12,15 +12,26 @@ function HomeScreen() {
   // --- STATE (DURUM) YÖNETİMİ ---
   const [isActive, setIsActive] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('Kodlama');
-  
+   
   // Varsayılan süre: 25 dakika * 60 saniye = 1500 saniye
   const INITIAL_TIME = 25 * 60;
   const [timeLeft, setTimeLeft] = useState(INITIAL_TIME);
-  
+   
   const [distractionCount, setDistractionCount] = useState(0);
   const appState = useRef(AppState.currentState);
 
   const categories = ['Ders', 'Kodlama', 'Kitap', 'Proje'];
+
+  // --- SÜRE AYARLAMA FONKSİYONU (YENİ) ---
+  const adjustTime = (minutes) => {
+    if (isActive) return; // Sayaç çalışırken süre değişmesin
+
+    setTimeLeft((prevTime) => {
+      const newTime = prevTime + (minutes * 60);
+      // 0'dan küçük olamaz kontrolü
+      return newTime < 0 ? 0 : newTime;
+    });
+  };
 
   // --- APP STATE DİNLEYİCİSİ ---
   useEffect(() => {
@@ -75,9 +86,34 @@ function HomeScreen() {
       </View>
 
       <View style={styles.content}>
+        
+        {/* SAYAÇ KARTI */}
         <View style={styles.timerCard}>
           <Text style={styles.timerText}>{formatTime(timeLeft)}</Text>
+          
+          {/* SÜRE AYARLAMA BUTONLARI (YENİ) */}
+          {!isActive && (
+            <View style={styles.adjustmentContainer}>
+              <TouchableOpacity onPress={() => adjustTime(-5)} style={styles.adjustButton}>
+                <Text style={styles.adjustText}>-5</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => adjustTime(-1)} style={styles.adjustButton}>
+                <Text style={styles.adjustText}>-1</Text>
+              </TouchableOpacity>
+              
+              <View style={{width: 20}} /> 
+              
+              <TouchableOpacity onPress={() => adjustTime(1)} style={styles.adjustButton}>
+                <Text style={styles.adjustText}>+1</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => adjustTime(5)} style={styles.adjustButton}>
+                <Text style={styles.adjustText}>+5</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           <Text style={styles.activeCategoryText}>{selectedCategory}</Text>
+          
           {distractionCount > 0 && (
             <View style={styles.distractionBadge}>
               <Text style={styles.distractionText}>⚠️ {distractionCount} Kez Odak Bozuldu!</Text>
@@ -85,6 +121,7 @@ function HomeScreen() {
           )}
         </View>
 
+        {/* KATEGORİ SEÇİMİ */}
         <View style={styles.categorySection}>
           <Text style={styles.sectionTitle}>Kategori Seçin:</Text>
           <View style={styles.categoryContainer}>
@@ -102,15 +139,16 @@ function HomeScreen() {
           </View>
         </View>
 
+        {/* AKSİYON BUTONLARI */}
         <View style={styles.actionArea}>
           <Text style={styles.descriptionText}>
             {isActive 
               ? "Odaklanma modu aktif! Uygulamadan çıkma." 
               : distractionCount > 0 
                 ? "Dikkatin dağıldı! Tekrar odaklanmak için Başlat'a bas."
-                : "Hedefine ulaşmak için hazır mısın?"}
+                : "Süreyi ayarla ve hedefine odaklan."}
           </Text>
-          
+           
           <TouchableOpacity 
             style={[styles.button, isActive ? styles.buttonStop : styles.buttonStart]}
             onPress={() => setIsActive(!isActive)}
@@ -120,7 +158,7 @@ function HomeScreen() {
 
           {(!isActive && (timeLeft !== INITIAL_TIME || distractionCount > 0)) && (
             <TouchableOpacity onPress={handleReset} style={styles.resetButton}>
-              <Text style={styles.resetButtonText}>Seansı Sıfırla</Text>
+              <Text style={styles.resetButtonText}>Seansı Sıfırla (25dk)</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -154,7 +192,7 @@ export default function App() {
     <NavigationContainer>
       <Tab.Navigator
         screenOptions={({ route }) => ({
-          headerShown: false, // Üstteki varsayılan başlığı gizle (biz kendimiz yaptık)
+          headerShown: false, 
           tabBarIcon: ({ focused, color, size }) => {
             let iconName;
 
@@ -166,8 +204,8 @@ export default function App() {
 
             return <Ionicons name={iconName} size={size} color={color} />;
           },
-          tabBarActiveTintColor: '#6c5ce7', // Seçili renk (Mor)
-          tabBarInactiveTintColor: 'gray',  // Pasif renk
+          tabBarActiveTintColor: '#6c5ce7', 
+          tabBarInactiveTintColor: 'gray', 
         })}
       >
         <Tab.Screen name="Zamanlayıcı" component={HomeScreen} />
@@ -222,6 +260,23 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#2d3436',
     fontVariant: ['tabular-nums'],
+  },
+  // YENİ BUTON STİLLERİ
+  adjustmentContainer: {
+    flexDirection: 'row',
+    marginBottom: 15,
+    marginTop: 5,
+  },
+  adjustButton: {
+    backgroundColor: '#f1f2f6',
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    borderRadius: 20,
+    marginHorizontal: 4,
+  },
+  adjustText: {
+    fontWeight: 'bold',
+    color: '#636e72',
   },
   activeCategoryText: {
     fontSize: 16,
