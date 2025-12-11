@@ -1,39 +1,37 @@
 import { StatusBar } from 'expo-status-bar';
 import { useState, useEffect, useRef } from 'react'; 
-import { StyleSheet, Text, View, SafeAreaView, TouchableOpacity, AppState } from 'react-native';
+import { StyleSheet, Text, View, SafeAreaView, TouchableOpacity, AppState, Modal, Vibration } from 'react-native';
 
 // Navigasyon Kütüphaneleri
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Ionicons } from '@expo/vector-icons'; // İkonlar için
+import { Ionicons } from '@expo/vector-icons'; 
 
 // --- 1. EKRAN: ANA SAYFA (ZAMANLAYICI) ---
 function HomeScreen() {
-  // --- STATE (DURUM) YÖNETİMİ ---
   const [isActive, setIsActive] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('Kodlama');
-   
-  // Varsayılan süre: 25 dakika * 60 saniye = 1500 saniye
+  
+  // Varsayılan süre (25 dk)
   const INITIAL_TIME = 25 * 60;
   const [timeLeft, setTimeLeft] = useState(INITIAL_TIME);
-   
+  
   const [distractionCount, setDistractionCount] = useState(0);
+  const [modalVisible, setModalVisible] = useState(false); // Modal görünürlüğü
+  
   const appState = useRef(AppState.currentState);
-
   const categories = ['Ders', 'Kodlama', 'Kitap', 'Proje'];
 
-  // --- SÜRE AYARLAMA FONKSİYONU (YENİ) ---
+  // SÜRE AYARLAMA
   const adjustTime = (minutes) => {
-    if (isActive) return; // Sayaç çalışırken süre değişmesin
-
+    if (isActive) return; 
     setTimeLeft((prevTime) => {
       const newTime = prevTime + (minutes * 60);
-      // 0'dan küçük olamaz kontrolü
       return newTime < 0 ? 0 : newTime;
     });
   };
 
-  // --- APP STATE DİNLEYİCİSİ ---
+  // APP STATE (DİKKAT DAĞINIKLIĞI)
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
       if ( nextAppState.match(/inactive|background/) && isActive ) {
@@ -42,17 +40,21 @@ function HomeScreen() {
       }
       appState.current = nextAppState;
     });
-
     return () => subscription.remove();
   }, [isActive]);
 
-  // --- SAYAÇ MANTIĞI ---
+  // SAYAÇ MANTIĞI VE BİTİŞ KONTROLÜ
   useEffect(() => {
     let interval = null;
     if (isActive && timeLeft > 0) {
       interval = setInterval(() => {
         setTimeLeft((time) => time - 1);
       }, 1000);
+    } else if (timeLeft === 0 && isActive) {
+      // SÜRE BİTTİĞİ AN:
+      setIsActive(false);
+      Vibration.vibrate(); // 1. Titreşim ver
+      setModalVisible(true); // 2. Özeti Göster
     } else if (timeLeft === 0) {
       setIsActive(false);
     }
@@ -81,8 +83,12 @@ function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Odaklanma Takibi</Text>
+      
+      {/* BAŞLIK (Dinamik) */}
+      <View style={[styles.header, isActive && styles.headerActive]}>
+        <Text style={[styles.headerTitle, isActive && styles.headerTitleActive]}>
+          {isActive ? "🔥 Odaklanılıyor..." : "Odaklanma Takibi"}
+        </Text>
       </View>
 
       <View style={styles.content}>
@@ -91,24 +97,13 @@ function HomeScreen() {
         <View style={styles.timerCard}>
           <Text style={styles.timerText}>{formatTime(timeLeft)}</Text>
           
-          {/* SÜRE AYARLAMA BUTONLARI (YENİ) */}
           {!isActive && (
             <View style={styles.adjustmentContainer}>
-              <TouchableOpacity onPress={() => adjustTime(-5)} style={styles.adjustButton}>
-                <Text style={styles.adjustText}>-5</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => adjustTime(-1)} style={styles.adjustButton}>
-                <Text style={styles.adjustText}>-1</Text>
-              </TouchableOpacity>
-              
+              <TouchableOpacity onPress={() => adjustTime(-5)} style={styles.adjustButton}><Text style={styles.adjustText}>-5</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => adjustTime(-1)} style={styles.adjustButton}><Text style={styles.adjustText}>-1</Text></TouchableOpacity>
               <View style={{width: 20}} /> 
-              
-              <TouchableOpacity onPress={() => adjustTime(1)} style={styles.adjustButton}>
-                <Text style={styles.adjustText}>+1</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => adjustTime(5)} style={styles.adjustButton}>
-                <Text style={styles.adjustText}>+5</Text>
-              </TouchableOpacity>
+              <TouchableOpacity onPress={() => adjustTime(1)} style={styles.adjustButton}><Text style={styles.adjustText}>+1</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => adjustTime(5)} style={styles.adjustButton}><Text style={styles.adjustText}>+5</Text></TouchableOpacity>
             </View>
           )}
 
@@ -121,7 +116,7 @@ function HomeScreen() {
           )}
         </View>
 
-        {/* KATEGORİ SEÇİMİ */}
+        {/* KATEGORİLER */}
         <View style={styles.categorySection}>
           <Text style={styles.sectionTitle}>Kategori Seçin:</Text>
           <View style={styles.categoryContainer}>
@@ -139,16 +134,8 @@ function HomeScreen() {
           </View>
         </View>
 
-        {/* AKSİYON BUTONLARI */}
+        {/* BAŞLAT BUTONU */}
         <View style={styles.actionArea}>
-          <Text style={styles.descriptionText}>
-            {isActive 
-              ? "Odaklanma modu aktif! Uygulamadan çıkma." 
-              : distractionCount > 0 
-                ? "Dikkatin dağıldı! Tekrar odaklanmak için Başlat'a bas."
-                : "Süreyi ayarla ve hedefine odaklan."}
-          </Text>
-           
           <TouchableOpacity 
             style={[styles.button, isActive ? styles.buttonStop : styles.buttonStart]}
             onPress={() => setIsActive(!isActive)}
@@ -162,12 +149,44 @@ function HomeScreen() {
             </TouchableOpacity>
           )}
         </View>
+
+        {/* --- SEANS ÖZETİ MODALI (POPUP) --- */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={modalVisible}
+          onRequestClose={() => setModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalView}>
+              <Ionicons name="trophy" size={50} color="#f1c40f" style={{marginBottom: 10}} />
+              <Text style={styles.modalTitle}>Harika İş! 🎉</Text>
+              <Text style={styles.modalSubtitle}>Bir odaklanma seansını tamamladın.</Text>
+              
+              <View style={styles.modalStats}>
+                <Text style={styles.modalStatText}>📂 Kategori: <Text style={{fontWeight:'bold'}}>{selectedCategory}</Text></Text>
+                <Text style={styles.modalStatText}>⚠️ Kesinti: <Text style={{fontWeight:'bold', color: distractionCount > 0 ? '#e74c3c' : '#27ae60'}}>{distractionCount}</Text></Text>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.button, {marginTop: 20, backgroundColor: '#2ecc71'}]}
+                onPress={() => {
+                  setModalVisible(false);
+                  handleReset(); // Kapatınca sayacı sıfırla
+                }}
+              >
+                <Text style={styles.buttonText}>Tamamla ve Bitir</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
       </View>
     </SafeAreaView>
   );
 }
 
-// --- 2. EKRAN: RAPORLAR (BOŞ TASLAK) ---
+// --- RAPORLAR EKRANI ---
 function ReportsScreen() {
   return (
     <SafeAreaView style={styles.container}>
@@ -184,7 +203,6 @@ function ReportsScreen() {
   );
 }
 
-// --- NAVİGASYON AYARLARI ---
 const Tab = createBottomTabNavigator();
 
 export default function App() {
@@ -195,13 +213,8 @@ export default function App() {
           headerShown: false, 
           tabBarIcon: ({ focused, color, size }) => {
             let iconName;
-
-            if (route.name === 'Zamanlayıcı') {
-              iconName = focused ? 'timer' : 'timer-outline';
-            } else if (route.name === 'Raporlar') {
-              iconName = focused ? 'stats-chart' : 'stats-chart-outline';
-            }
-
+            if (route.name === 'Zamanlayıcı') iconName = focused ? 'timer' : 'timer-outline';
+            else if (route.name === 'Raporlar') iconName = focused ? 'stats-chart' : 'stats-chart-outline';
             return <Ionicons name={iconName} size={size} color={color} />;
           },
           tabBarActiveTintColor: '#6c5ce7', 
@@ -230,10 +243,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
   },
+  headerActive: {
+    backgroundColor: '#e3f2fd', // Aktifken başlık mavi tonlu olsun
+  },
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: '#2d3436',
+  },
+  headerTitleActive: {
+    color: '#0984e3',
   },
   content: {
     flex: 1,
@@ -261,7 +280,6 @@ const styles = StyleSheet.create({
     color: '#2d3436',
     fontVariant: ['tabular-nums'],
   },
-  // YENİ BUTON STİLLERİ
   adjustmentContainer: {
     flexDirection: 'row',
     marginBottom: 15,
@@ -344,14 +362,6 @@ const styles = StyleSheet.create({
     marginTop: 'auto',
     marginBottom: 30,
   },
-  descriptionText: {
-    fontSize: 15,
-    textAlign: 'center',
-    color: '#b2bec3',
-    marginBottom: 20,
-    minHeight: 40,
-    justifyContent: 'center',
-  },
   button: {
     width: '100%',
     paddingVertical: 18,
@@ -385,4 +395,47 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textDecorationLine: 'underline',
   },
+  // --- MODAL STİLLERİ ---
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)', // Arka planı karart
+  },
+  modalView: {
+    width: '80%',
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 35,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#2d3436',
+    marginBottom: 10,
+  },
+  modalSubtitle: {
+    fontSize: 16,
+    color: '#636e72',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  modalStats: {
+    width: '100%',
+    backgroundColor: '#f8f9fa',
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+  modalStatText: {
+    fontSize: 16,
+    color: '#2d3436',
+    marginBottom: 5,
+  }
 });
